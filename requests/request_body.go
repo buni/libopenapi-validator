@@ -4,10 +4,12 @@
 package requests
 
 import (
+	"net/http"
+	"sync"
+
 	"github.com/pb33f/libopenapi-validator/errors"
 	"github.com/pb33f/libopenapi/datamodel/high/base"
-	"github.com/pb33f/libopenapi/datamodel/high/v3"
-	"net/http"
+	v3 "github.com/pb33f/libopenapi/datamodel/high/v3"
 )
 
 // RequestBodyValidator is an interface that defines the methods for validating request bodies for Operations.
@@ -15,7 +17,6 @@ import (
 //	ValidateRequestBody method accepts an *http.Request and returns true if validation passed,
 //	                    false if validation failed and a slice of ValidationError pointers.
 type RequestBodyValidator interface {
-
 	// ValidateRequestBody will validate the request body for an operation. The first return value will be true if the
 	// request body is valid, false if it is not. The second return value will be a slice of ValidationError pointers if
 	// the body is not valid.
@@ -29,10 +30,16 @@ type RequestBodyValidator interface {
 
 // NewRequestBodyValidator will create a new RequestBodyValidator from an OpenAPI 3+ document
 func NewRequestBodyValidator(document *v3.Document) RequestBodyValidator {
-	return &requestBodyValidator{document: document, schemaCache: make(map[[32]byte]*schemaCache)}
+	validator := &requestBodyValidator{document: document, schemaCache: make(map[[32]byte]*schemaCache), mux: &sync.RWMutex{}}
+	_ = validator.buildCache() // ignore the error for now
+
+	return validator
 }
 
 func (v *requestBodyValidator) SetPathItem(path *v3.PathItem, pathValue string) {
+	v.mux.Lock()
+	defer v.mux.Unlock()
+
 	v.pathItem = path
 	v.pathValue = pathValue
 }
@@ -49,4 +56,5 @@ type requestBodyValidator struct {
 	pathValue   string
 	errors      []*errors.ValidationError
 	schemaCache map[[32]byte]*schemaCache
+	mux         *sync.RWMutex
 }

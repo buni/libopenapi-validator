@@ -5,34 +5,28 @@ package parameters
 
 import (
 	"fmt"
-	"github.com/pb33f/libopenapi-validator/errors"
-	"github.com/pb33f/libopenapi-validator/helpers"
-	"github.com/pb33f/libopenapi-validator/paths"
-	"github.com/pb33f/libopenapi/datamodel/high/v3"
 	"net/http"
 	"strconv"
 	"strings"
+
+	"github.com/pb33f/libopenapi-validator/errors"
+	"github.com/pb33f/libopenapi-validator/helpers"
+	"github.com/pb33f/libopenapi-validator/paths"
 )
 
 func (v *paramValidator) ValidatePathParams(request *http.Request) (bool, []*errors.ValidationError) {
+	v.mux.RLock()
+	defer v.mux.RUnlock()
 
 	// find path
-	var pathItem *v3.PathItem
-	var errs []*errors.ValidationError
-	var foundPath string
-	if v.pathItem == nil && v.pathValue == "" {
-		pathItem, errs, foundPath = paths.FindPath(request, v.document)
-		if pathItem == nil || errs != nil {
-			v.errors = errs
-			return false, errs
-		}
-	} else {
-		pathItem = v.pathItem
-		foundPath = v.pathValue
+
+	pathItem, errs, foundPath := paths.FindPath(request, v.document)
+	if pathItem == nil || errs != nil {
+		return false, errs
 	}
 
 	// extract params for the operation
-	var params = helpers.ExtractParamsForOperation(request, pathItem)
+	params := helpers.ExtractParamsForOperation(request, pathItem)
 	var validationErrors []*errors.ValidationError
 	for _, p := range params {
 		if p.In == helpers.Path {
@@ -41,7 +35,7 @@ func (v *paramValidator) ValidatePathParams(request *http.Request) (bool, []*err
 			submittedSegments := strings.Split(request.URL.Path, helpers.Slash)
 			pathSegments := strings.Split(foundPath, helpers.Slash)
 
-			//var paramTemplate string
+			// var paramTemplate string
 			for x := range pathSegments {
 				if pathSegments[x] == "" { // skip empty segments
 					continue
@@ -50,13 +44,13 @@ func (v *paramValidator) ValidatePathParams(request *http.Request) (bool, []*err
 				if i > -1 {
 					isMatrix := false
 					isLabel := false
-					//isExplode := false
+					// isExplode := false
 					isSimple := true
 					paramTemplate := pathSegments[x][i+1 : len(pathSegments[x])-1]
 					paramName := paramTemplate
 					// check for an asterisk on the end of the parameter (explode)
 					if strings.HasSuffix(paramTemplate, helpers.Asterisk) {
-						//isExplode = true
+						// isExplode = true
 						paramName = paramTemplate[:len(paramTemplate)-1]
 					}
 					if strings.HasPrefix(paramTemplate, helpers.Period) {
@@ -98,7 +92,6 @@ func (v *paramValidator) ValidatePathParams(request *http.Request) (bool, []*err
 
 					// for each type, check the value.
 					for typ := range sch.Type {
-
 						switch sch.Type[typ] {
 						case helpers.String:
 

@@ -4,32 +4,29 @@
 package responses
 
 import (
+	"net/http"
+	"strconv"
+	"strings"
+
 	"github.com/pb33f/libopenapi-validator/errors"
 	"github.com/pb33f/libopenapi-validator/helpers"
 	"github.com/pb33f/libopenapi-validator/paths"
 	"github.com/pb33f/libopenapi/datamodel/high/base"
-	"github.com/pb33f/libopenapi/datamodel/high/v3"
+	v3 "github.com/pb33f/libopenapi/datamodel/high/v3"
 	"github.com/pb33f/libopenapi/utils"
-	"net/http"
-	"strconv"
-	"strings"
 )
 
 func (v *responseBodyValidator) ValidateResponseBody(
 	request *http.Request,
-	response *http.Response) (bool, []*errors.ValidationError) {
+	response *http.Response,
+) (bool, []*errors.ValidationError) {
+	v.mux.RLock()
+	defer v.mux.RUnlock()
 
 	// find path
-	var pathItem *v3.PathItem
-	var errs []*errors.ValidationError
-	if v.pathItem == nil {
-		pathItem, errs, _ = paths.FindPath(request, v.document)
-		if pathItem == nil || errs != nil {
-			v.errors = errs
-			return false, errs
-		}
-	} else {
-		pathItem = v.pathItem
+	pathItem, errs, _ := paths.FindPath(request, v.document)
+	if pathItem == nil || errs != nil {
+		return false, errs
 	}
 
 	var validationErrors []*errors.ValidationError
@@ -45,15 +42,11 @@ func (v *responseBodyValidator) ValidateResponseBody(
 	// check if the response code is in the contract
 	foundResponse := operation.Responses.FindResponseByCode(httpCode)
 	if foundResponse != nil {
-
 		// check content type has been defined in the contract
 		if mediaType, ok := foundResponse.Content[mediaTypeSting]; ok {
-
 			validationErrors = append(validationErrors,
 				v.checkResponseSchema(request, response, mediaTypeSting, mediaType)...)
-
 		} else {
-
 			// check that the operation *actually* returns a body. (i.e. a 204 response)
 			if foundResponse.Content != nil && len(foundResponse.Content) > 0 {
 
@@ -65,18 +58,13 @@ func (v *responseBodyValidator) ValidateResponseBody(
 			}
 		}
 	} else {
-
 		// no code match, check for default response
 		if operation.Responses.Default != nil {
-
 			// check content type has been defined in the contract
 			if mediaType, ok := operation.Responses.Default.Content[mediaTypeSting]; ok {
-
 				validationErrors = append(validationErrors,
 					v.checkResponseSchema(request, response, contentType, mediaType)...)
-
 			} else {
-
 				// check that the operation *actually* returns a body. (i.e. a 204 response)
 				if operation.Responses.Default.Content != nil && len(operation.Responses.Default.Content) > 0 {
 
@@ -86,7 +74,6 @@ func (v *responseBodyValidator) ValidateResponseBody(
 						errors.ResponseContentTypeNotFound(operation, request, response, codeStr, true))
 				}
 			}
-
 		} else {
 			// TODO: add support for '2XX' and '3XX' responses in the contract
 			// no default, no code match, nothing!
@@ -104,15 +91,14 @@ func (v *responseBodyValidator) checkResponseSchema(
 	request *http.Request,
 	response *http.Response,
 	contentType string,
-	mediaType *v3.MediaType) []*errors.ValidationError {
-
+	mediaType *v3.MediaType,
+) []*errors.ValidationError {
 	var validationErrors []*errors.ValidationError
 
 	// currently, we can only validate JSON based responses, so check for the presence
 	// of 'json' in the content type (what ever it may be) so we can perform a schema check on it.
 	// anything other than JSON, will be ignored.
 	if strings.Contains(strings.ToLower(contentType), helpers.JSONType) {
-
 		// extract schema from media type
 		if mediaType.Schema != nil {
 

@@ -5,33 +5,27 @@ package parameters
 
 import (
 	"fmt"
+	"net/http"
+	"strconv"
+	"strings"
+
 	"github.com/pb33f/libopenapi-validator/errors"
 	"github.com/pb33f/libopenapi-validator/helpers"
 	"github.com/pb33f/libopenapi-validator/paths"
 	"github.com/pb33f/libopenapi/datamodel/high/base"
-	v3 "github.com/pb33f/libopenapi/datamodel/high/v3"
-	"net/http"
-	"strconv"
-	"strings"
 )
 
 func (v *paramValidator) ValidateCookieParams(request *http.Request) (bool, []*errors.ValidationError) {
+	v.mux.RLock()
+	defer v.mux.RUnlock()
 
-	// find path
-	var pathItem *v3.PathItem
-	var errs []*errors.ValidationError
-	if v.pathItem == nil {
-		pathItem, errs, _ = paths.FindPath(request, v.document)
-		if pathItem == nil || errs != nil {
-			v.errors = errs
-			return false, errs
-		}
-	} else {
-		pathItem = v.pathItem
+	pathItem, errs, _ := paths.FindPath(request, v.document)
+	if pathItem == nil || errs != nil {
+		return false, errs
 	}
 
 	// extract params for the operation
-	var params = helpers.ExtractParamsForOperation(request, pathItem)
+	params := helpers.ExtractParamsForOperation(request, pathItem)
 	var validationErrors []*errors.ValidationError
 	for _, p := range params {
 		if p.In == helpers.Cookie {

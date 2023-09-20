@@ -4,6 +4,9 @@
 package validator
 
 import (
+	"net/http"
+	"sync"
+
 	"github.com/pb33f/libopenapi"
 	"github.com/pb33f/libopenapi-validator/errors"
 	"github.com/pb33f/libopenapi-validator/parameters"
@@ -11,9 +14,7 @@ import (
 	"github.com/pb33f/libopenapi-validator/requests"
 	"github.com/pb33f/libopenapi-validator/responses"
 	"github.com/pb33f/libopenapi-validator/schema_validation"
-	"github.com/pb33f/libopenapi/datamodel/high/v3"
-	"net/http"
-	"sync"
+	v3 "github.com/pb33f/libopenapi/datamodel/high/v3"
 )
 
 // Validator provides a coarse grained interface for validating an OpenAPI 3+ documents.
@@ -23,7 +24,6 @@ import (
 // Validating *http.Response objects against an OpenAPI 3+ document
 // Validating an OpenAPI 3+ document against the OpenAPI 3+ specification
 type Validator interface {
-
 	// ValidateHttpRequest will validate an *http.Request object against an OpenAPI 3+ document.
 	// The path, query, cookie and header parameters and request body are validated.
 	ValidateHttpRequest(request *http.Request) (bool, []*errors.ValidationError)
@@ -82,9 +82,11 @@ func NewValidatorFromV3Model(m *v3.Document) Validator {
 func (v *validator) GetParameterValidator() parameters.ParameterValidator {
 	return v.paramValidator
 }
+
 func (v *validator) GetRequestBodyValidator() requests.RequestBodyValidator {
 	return v.requestValidator
 }
+
 func (v *validator) GetResponseBodyValidator() responses.ResponseBodyValidator {
 	return v.responseValidator
 }
@@ -95,19 +97,16 @@ func (v *validator) ValidateDocument() (bool, []*errors.ValidationError) {
 
 func (v *validator) ValidateHttpResponse(
 	request *http.Request,
-	response *http.Response) (bool, []*errors.ValidationError) {
-
+	response *http.Response,
+) (bool, []*errors.ValidationError) {
 	var pathItem *v3.PathItem
 	var pathValue string
 	var errs []*errors.ValidationError
 
 	pathItem, errs, pathValue = paths.FindPath(request, v.v3Model)
 	if pathItem == nil || errs != nil {
-		v.errors = errs
 		return false, errs
 	}
-	v.foundPath = pathItem
-	v.foundPathValue = pathValue
 
 	responseBodyValidator := v.responseValidator
 	responseBodyValidator.SetPathItem(pathItem, pathValue)
@@ -118,26 +117,22 @@ func (v *validator) ValidateHttpResponse(
 	if len(responseErrors) > 0 {
 		return false, responseErrors
 	}
-	v.foundPath = nil
-	v.foundPathValue = ""
+
 	return true, nil
 }
 
 func (v *validator) ValidateHttpRequestResponse(
 	request *http.Request,
-	response *http.Response) (bool, []*errors.ValidationError) {
-
+	response *http.Response,
+) (bool, []*errors.ValidationError) {
 	var pathItem *v3.PathItem
 	var pathValue string
 	var errs []*errors.ValidationError
 
 	pathItem, errs, pathValue = paths.FindPath(request, v.v3Model)
 	if pathItem == nil || errs != nil {
-		v.errors = errs
 		return false, errs
 	}
-	v.foundPath = pathItem
-	v.foundPathValue = pathValue
 
 	responseBodyValidator := v.responseValidator
 	responseBodyValidator.SetPathItem(pathItem, pathValue)
@@ -149,28 +144,15 @@ func (v *validator) ValidateHttpRequestResponse(
 	if len(requestErrors) > 0 || len(responseErrors) > 0 {
 		return false, append(requestErrors, responseErrors...)
 	}
-	v.foundPath = nil
-	v.foundPathValue = ""
+
 	return true, nil
 }
 
 func (v *validator) ValidateHttpRequest(request *http.Request) (bool, []*errors.ValidationError) {
-
 	// find path
-	var pathItem *v3.PathItem
-	var pathValue string
-	var errs []*errors.ValidationError
-	if v.foundPath == nil {
-		pathItem, errs, pathValue = paths.FindPath(request, v.v3Model)
-		if pathItem == nil || errs != nil {
-			v.errors = errs
-			return false, errs
-		}
-		v.foundPath = pathItem
-		v.foundPathValue = pathValue
-	} else {
-		pathItem = v.foundPath
-		pathValue = v.foundPathValue
+	pathItem, errs, pathValue := paths.FindPath(request, v.v3Model)
+	if pathItem == nil || errs != nil {
+		return false, errs
 	}
 
 	// create a new parameter validator
@@ -220,7 +202,8 @@ func (v *validator) ValidateHttpRequest(request *http.Request) (bool, []*errors.
 		validateParamFunction := func(
 			control chan bool,
 			errorChan chan []*errors.ValidationError,
-			validatorFunc validationFunction) {
+			validatorFunc validationFunction,
+		) {
 			valid, pErrs := validatorFunc(request)
 			if !valid {
 				errorChan <- pErrs
@@ -268,8 +251,7 @@ func (v *validator) ValidateHttpRequest(request *http.Request) (bool, []*errors.
 
 	// wait for all the validations to complete
 	<-doneChan
-	v.foundPathValue = ""
-	v.foundPath = nil
+
 	if len(validationErrors) > 0 {
 		return false, validationErrors
 	}
@@ -292,7 +274,8 @@ var validationLock sync.Mutex
 func runValidation(control, doneChan chan bool,
 	errorChan chan []*errors.ValidationError,
 	validationErrors *[]*errors.ValidationError,
-	total int) {
+	total int,
+) {
 	completedValidations := 0
 	for {
 		select {
@@ -310,5 +293,7 @@ func runValidation(control, doneChan chan bool,
 	}
 }
 
-type validationFunction func(request *http.Request) (bool, []*errors.ValidationError)
-type validationFunctionAsync func(control chan bool, errorChan chan []*errors.ValidationError)
+type (
+	validationFunction      func(request *http.Request) (bool, []*errors.ValidationError)
+	validationFunctionAsync func(control chan bool, errorChan chan []*errors.ValidationError)
+)

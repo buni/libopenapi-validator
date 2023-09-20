@@ -6,34 +6,28 @@ package parameters
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/pb33f/libopenapi-validator/errors"
-	"github.com/pb33f/libopenapi-validator/helpers"
-	"github.com/pb33f/libopenapi-validator/paths"
-	"github.com/pb33f/libopenapi/datamodel/high/base"
-	"github.com/pb33f/libopenapi/datamodel/high/v3"
 	"net/http"
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/pb33f/libopenapi-validator/errors"
+	"github.com/pb33f/libopenapi-validator/helpers"
+	"github.com/pb33f/libopenapi-validator/paths"
+	"github.com/pb33f/libopenapi/datamodel/high/base"
 )
 
 func (v *paramValidator) ValidateQueryParams(request *http.Request) (bool, []*errors.ValidationError) {
+	v.mux.RLock()
+	defer v.mux.RUnlock()
 
-	// find path
-	var pathItem *v3.PathItem
-	var errs []*errors.ValidationError
-	if v.pathItem == nil {
-		pathItem, errs, _ = paths.FindPath(request, v.document)
-		if pathItem == nil || errs != nil {
-			v.errors = errs
-			return false, errs
-		}
-	} else {
-		pathItem = v.pathItem
+	pathItem, errs, _ := paths.FindPath(request, v.document)
+	if pathItem == nil || errs != nil {
+		return false, errs
 	}
 
 	// extract params for the operation
-	var params = helpers.ExtractParamsForOperation(request, pathItem)
+	params := helpers.ExtractParamsForOperation(request, pathItem)
 	queryParams := make(map[string][]*helpers.QueryParam)
 	var validationErrors []*errors.ValidationError
 
@@ -210,7 +204,6 @@ doneLooking:
 						}
 					}
 				}
-
 			} else {
 				// if the param is not in the requests, so let's check if this param is an
 				// object, and if we should use default encoding and explode values.
@@ -241,7 +234,6 @@ doneLooking:
 		}
 	}
 
-	v.errors = validationErrors
 	if len(validationErrors) > 0 {
 		return false, validationErrors
 	}

@@ -4,10 +4,12 @@
 package responses
 
 import (
+	"net/http"
+	"sync"
+
 	"github.com/pb33f/libopenapi-validator/errors"
 	"github.com/pb33f/libopenapi/datamodel/high/base"
-	"github.com/pb33f/libopenapi/datamodel/high/v3"
-	"net/http"
+	v3 "github.com/pb33f/libopenapi/datamodel/high/v3"
 )
 
 // ResponseBodyValidator is an interface that defines the methods for validating response bodies for Operations.
@@ -15,7 +17,6 @@ import (
 //	ValidateResponseBody method accepts an *http.Request and returns true if validation passed,
 //	                     false if validation failed and a slice of ValidationError pointers.
 type ResponseBodyValidator interface {
-
 	// ValidateResponseBody will validate the response body for a http.Response pointer. The request is used to
 	// locate the operation in the specification, the response is used to ensure the response code, media type and the
 	// schema of the response body are valid.
@@ -28,13 +29,16 @@ type ResponseBodyValidator interface {
 }
 
 func (v *responseBodyValidator) SetPathItem(path *v3.PathItem, pathValue string) {
+	v.mux.Lock()
+	defer v.mux.Unlock()
+
 	v.pathItem = path
 	v.pathValue = pathValue
 }
 
 // NewResponseBodyValidator will create a new ResponseBodyValidator from an OpenAPI 3+ document
 func NewResponseBodyValidator(document *v3.Document) ResponseBodyValidator {
-	return &responseBodyValidator{document: document, schemaCache: make(map[[32]byte]*schemaCache)}
+	return &responseBodyValidator{document: document, schemaCache: make(map[[32]byte]*schemaCache), mux: &sync.RWMutex{}}
 }
 
 type schemaCache struct {
@@ -47,6 +51,6 @@ type responseBodyValidator struct {
 	document    *v3.Document
 	pathItem    *v3.PathItem
 	pathValue   string
-	errors      []*errors.ValidationError
 	schemaCache map[[32]byte]*schemaCache
+	mux         *sync.RWMutex
 }

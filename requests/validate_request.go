@@ -42,8 +42,26 @@ func ValidateRequestSchema(
 
 	var decodedObj any
 
-	if len(schema.Required) == 0 {
-		return true, nil
+	if len(schema.Required) != 0 && len(requestBody) == 0 {
+		return false, []*errors.ValidationError{
+			{
+				ValidationType:    helpers.RequestBodyValidation,
+				ValidationSubType: helpers.Schema,
+				Message: fmt.Sprintf("%s request body for '%s' failed to validate schema",
+					request.Method, request.URL.Path),
+				Reason:   "Request body is required, but is empty",
+				SpecLine: 1,
+				SpecCol:  0,
+				SchemaValidationErrors: []*errors.SchemaValidationFailure{{
+					Reason:          "Request body is required, but is empty",
+					Location:        "unavailable",
+					ReferenceSchema: string(renderedSchema),
+					ReferenceObject: string(requestBody),
+				}},
+				HowToFix: errors.HowToFixInvalidSchema,
+				Context:  string(renderedSchema), // attach the rendered schema to the error
+			},
+		}
 	}
 
 	err := json.Unmarshal(requestBody, &decodedObj)
@@ -68,11 +86,6 @@ func ValidateRequestSchema(
 			Context:                string(renderedSchema), // attach the rendered schema to the error
 		})
 		return false, validationErrors
-	}
-
-	// no request body? failed to decode anything? nothing to do here.
-	if requestBody == nil || decodedObj == nil {
-		return true, nil
 	}
 
 	compiler := jsonschema.NewCompiler()

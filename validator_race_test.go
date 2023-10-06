@@ -42,7 +42,7 @@ func TestReusingValidator(t *testing.T) {
 		req.Header.Set("Content-Type", "application/json")
 
 		ok, errsz := v.ValidateHttpRequest(req)
-		log.Println(ok, errsz[0].SchemaValidationErrors[0].OriginalError.Causes[0].Message)
+		log.Println(ok, errsz[0].SchemaValidationErrors[0].OriginalError.Causes[0].Message, errsz[0].SchemaValidationErrors[0].OriginalError.Causes[0].KeywordLocation, errsz[0].SchemaValidationErrors[0].OriginalError.Causes[0].InstanceLocation)
 	})
 }
 

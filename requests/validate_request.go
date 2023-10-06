@@ -7,18 +7,19 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/pb33f/libopenapi-validator/errors"
-	"github.com/pb33f/libopenapi-validator/helpers"
-	"github.com/pb33f/libopenapi-validator/schema_validation"
-	"github.com/pb33f/libopenapi/datamodel/high/base"
-	"github.com/santhosh-tekuri/jsonschema/v5"
-	"gopkg.in/yaml.v3"
 	"io"
 	"net/http"
 	"reflect"
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/pb33f/libopenapi-validator/errors"
+	"github.com/pb33f/libopenapi-validator/helpers"
+	"github.com/pb33f/libopenapi-validator/schema_validation"
+	"github.com/pb33f/libopenapi/datamodel/high/base"
+	"github.com/santhosh-tekuri/jsonschema/v5"
+	"gopkg.in/yaml.v3"
 )
 
 var instanceLocationRegex = regexp.MustCompile(`^/(\d+)`)
@@ -29,8 +30,8 @@ func ValidateRequestSchema(
 	request *http.Request,
 	schema *base.Schema,
 	renderedSchema,
-	jsonSchema []byte) (bool, []*errors.ValidationError) {
-
+	jsonSchema []byte,
+) (bool, []*errors.ValidationError) {
 	var validationErrors []*errors.ValidationError
 
 	requestBody, _ := io.ReadAll(request.Body)
@@ -39,33 +40,34 @@ func ValidateRequestSchema(
 	_ = request.Body.Close()
 	request.Body = io.NopCloser(bytes.NewBuffer(requestBody))
 
-	var decodedObj interface{}
+	var decodedObj any
 
-	if len(requestBody) > 0 {
-		err := json.Unmarshal(requestBody, &decodedObj)
+	if len(schema.Required) == 0 {
+		return true, nil
+	}
 
-		if err != nil {
-			// cannot decode the request body, so it's not valid
-			violation := &errors.SchemaValidationFailure{
-				Reason:          err.Error(),
-				Location:        "unavailable",
-				ReferenceSchema: string(renderedSchema),
-				ReferenceObject: string(requestBody),
-			}
-			validationErrors = append(validationErrors, &errors.ValidationError{
-				ValidationType:    helpers.RequestBodyValidation,
-				ValidationSubType: helpers.Schema,
-				Message: fmt.Sprintf("%s request body for '%s' failed to validate schema",
-					request.Method, request.URL.Path),
-				Reason:                 fmt.Sprintf("The request body cannot be decoded: %s", err.Error()),
-				SpecLine:               1,
-				SpecCol:                0,
-				SchemaValidationErrors: []*errors.SchemaValidationFailure{violation},
-				HowToFix:               errors.HowToFixInvalidSchema,
-				Context:                string(renderedSchema), // attach the rendered schema to the error
-			})
-			return false, validationErrors
+	err := json.Unmarshal(requestBody, &decodedObj)
+	if err != nil {
+		// cannot decode the request body, so it's not valid
+		violation := &errors.SchemaValidationFailure{
+			Reason:          err.Error(),
+			Location:        "unavailable",
+			ReferenceSchema: string(renderedSchema),
+			ReferenceObject: string(requestBody),
 		}
+		validationErrors = append(validationErrors, &errors.ValidationError{
+			ValidationType:    helpers.RequestBodyValidation,
+			ValidationSubType: helpers.Schema,
+			Message: fmt.Sprintf("%s request body for '%s' failed to validate schema",
+				request.Method, request.URL.Path),
+			Reason:                 fmt.Sprintf("The request body cannot be decoded: %s", err.Error()),
+			SpecLine:               1,
+			SpecCol:                0,
+			SchemaValidationErrors: []*errors.SchemaValidationFailure{violation},
+			HowToFix:               errors.HowToFixInvalidSchema,
+			Context:                string(renderedSchema), // attach the rendered schema to the error
+		})
+		return false, validationErrors
 	}
 
 	// no request body? failed to decode anything? nothing to do here.

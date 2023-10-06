@@ -2,6 +2,7 @@ package validator
 
 import (
 	"bytes"
+	"log"
 	"net/http"
 	"testing"
 
@@ -27,6 +28,22 @@ func TestReusingValidatorRace(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestReusingValidator(t *testing.T) {
+	doc, err := libopenapi.NewDocument(pestore)
+	assert.NoError(t, err)
+
+	docv3, _ := doc.BuildV3Model()
+	v := NewValidatorFromV3Model(&docv3.Model)
+
+	t.Run("ValidateHttpRequest", func(t *testing.T) {
+		req, _ := http.NewRequest("POST", "/pets", bytes.NewReader([]byte("{}")))
+		req.Header.Set("Content-Type", "application/json")
+
+		ok, errsz := v.ValidateHttpRequest(req)
+		log.Println(ok, errsz[0].SchemaValidationErrors[0].OriginalError.Causes[0].Message)
+	})
 }
 
 func TestValidatorRace(t *testing.T) {

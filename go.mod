@@ -4,7 +4,7 @@ go 1.19
 
 require (
 	github.com/pb33f/libopenapi v0.10.6
-	github.com/santhosh-tekuri/jsonschema/v5 v5.2.0
+	github.com/santhosh-tekuri/jsonschema/v5 v5.1.2-0.20230112131934-e8eeadf08a46
 	github.com/stretchr/testify v1.8.0
 	github.com/vmware-labs/yaml-jsonpath v0.3.2
 	go.uber.org/zap v1.24.0

@@ -53,7 +53,7 @@ func ValidateRequestSchema(
 				SpecLine: 1,
 				SpecCol:  0,
 				SchemaValidationErrors: []*errors.SchemaValidationFailure{{
-					Reason:          "Request body is required, but is empty",
+					Reason:          "Request body required, but is empty.",
 					Location:        "unavailable",
 					ReferenceSchema: string(renderedSchema),
 					ReferenceObject: string(requestBody),
